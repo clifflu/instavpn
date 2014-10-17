@@ -21,6 +21,9 @@ def load_json(filename):
     """
     from collections import OrderedDict
 
-    with open(filename) as fp:
-        return json.load(fp, object_pairs_hook=OrderedDict)
+    if type(filename) is str:
+        with open(filename) as fp:
+            return json.load(fp, object_pairs_hook=OrderedDict)
+
+    return json.load(filename, object_pairs_hook=OrderedDict)
 
