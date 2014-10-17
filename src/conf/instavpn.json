@@ -1,0 +1,19 @@
+{
+    "shared_secret_bits": 2048,
+    "log_path": "../log/",
+    "suggestions": {
+        "instance_type": {
+            "micro": "t2.micro",
+            "medium": "m3.medium",
+            "xlarge": "m3.xlarge",
+            "4xlarge": "c3.4xlarge",
+            "8xlarge": "c3.8xlarge"
+        },
+        "region": {
+            "N. Virginia": "us-east-1",
+            "N. California": "us-west-1",
+            "Oregon": "us-west-2",
+            "Tokyo": "ap-northeast-1"
+        }
+    }
+}

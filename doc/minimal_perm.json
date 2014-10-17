@@ -1,0 +1,44 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ec2:Get*", "ec2:Describe*"],
+      "Resource": ["*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:UpdateStack",
+        "cloudformation:DescribeStacks"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:*:*:stack/instavpn-*/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AllocateAddress",
+        "ec2:AssociateAddress",
+        "ec2:AttachNetworkInterface",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:CreateNetworkInterface",
+        "ec2:CreateRoute",
+        "ec2:CreateSecurityGroup",
+        "ec2:CreateTags",
+        "ec2:CreateVolume",
+        "ec2:DeleteRoute",
+        "ec2:ModifyNetworkInterfaceAttribute",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:RunInstances",
+        "ec2:StartInstances"
+      ],
+      "Resource": [
+        "*"
+      ]
+    }
+  ]
+}

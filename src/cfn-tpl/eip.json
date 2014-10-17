@@ -1,0 +1,63 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Cloud Formation template manipulated with `instavpn` to create VPN tunnels automatically.",
+  "Parameters": {
+    "MySide": {
+      "Description": "Which side of VPN conneciton to build [Server, Client, TestBoth]",
+      "Type": "String",
+      "AllowedValues": ["Server", "Client", "TestBoth"],
+      "ConstraintDescription": "Must be either Server, Client or TestBoth"
+    }
+  },
+
+  "Conditions": {
+    "IsServer": {
+        "Fn::Or": [
+            {"Fn::Equals": [{"Ref": "MySide"}, "Server"]},
+            {"Fn::Equals": [{"Ref": "MySide"}, "TestBoth"]}
+        ]
+    },
+    "IsClient": {
+        "Fn::Or": [
+            {"Fn::Equals": [{"Ref": "MySide"}, "Client"]},
+            {"Fn::Equals": [{"Ref": "MySide"}, "TestBoth"]}
+        ]
+    }
+  },
+
+  "Resources": {
+    "ServerDummyEIP": {
+      "Type" : "AWS::EC2::EIP",
+      "Condition": "IsServer",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "ClientDummyEIP": {
+      "Type" : "AWS::EC2::EIP",
+      "Condition": "IsClient",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    }
+  },
+
+  "Outputs": {
+    "ServerEIP": {
+      "Condition": "IsServer",
+      "Value": {"Ref": "ServerDummyEIP"}
+    },
+    "ServerEIPId": {
+      "Condition": "IsServer",
+      "Value": {"Fn::GetAtt": ["ServerDummyEIP", "AllocationId"]}
+    },
+    "ClientEIP": {
+      "Condition": "IsClient",
+      "Value": {"Ref": "ClientDummyEIP"}
+    },
+    "ClientEIPId": {
+      "Condition": "IsClient",
+      "Value": {"Fn::GetAtt": ["ClientDummyEIP", "AllocationId"]}
+    }
+  }
+}

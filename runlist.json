@@ -1,0 +1,4 @@
+{
+    "run_list": [ "recipe[python::default]", "recipe[python::pip]" ]
+}
+

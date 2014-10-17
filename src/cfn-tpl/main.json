@@ -1,0 +1,434 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Cloud Formation template manipulated with `instavpn` to create VPN tunnels automatically.",
+  "Parameters": {
+    "MySide": {
+      "Description": "Which side of VPN conneciton to build [Server, Client, TestBoth]",
+      "Type": "String",
+      "AllowedValues": ["Server", "Client", "TestBoth"],
+      "ConstraintDescription": "Must be either Server, Client or TestBoth"
+    },
+    "InstanceType": {
+      "Description": "VPN instance type. Recommended values are: t2.micro, m3.medium, m3.xlarge, c3.4xlarge, and c3.8xlarge.",
+      "Type": "String",
+      "AllowedValues": ["t1.micro","t2.micro","t2.small","t2.medium","m1.small","m1.medium","m1.large","m1.xlarge","m3.medium","m3.large","m3.xlarge","m3.2xlarge","c3.4xlarge","c3.8xlarge"],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+    "SharedSecret": {
+      "NoEcho": "true",
+      "Description": "Pre-shared secret between VPN boxes",
+      "Type": "String",
+      "MinLength": "16",
+      "AllowedPattern": "[a-zA-Z0-9\\-\\_\\=]+",
+      "ConstraintDescription": "must contain 15+ urlsafe_base64 characters."
+    },
+
+    "ServerName": {
+      "Description": "Server (Service) Name",
+      "Type": "String",
+      "Default": "DCS",
+      "AllowedPattern": "[a-zA-Z0-9\\-_]+",
+      "ConstraintDescription": "must contain only [a-zA-Z0-9\\-_]."
+    },
+    "ServerEIP": {
+      "Description": "Server elastic IP",
+      "Type": "String",
+      "AllowedPattern": "([0-9]{1,3}\\.){3}[0-9]{1,3}",
+      "ConstraintDescription": "must contain only alphanumeric characters."
+    },
+    "ServerEIPId": {
+      "Description": "Server Elastic IP allocation ID",
+      "Type": "String",
+      "AllowedPattern": "eipalloc-[a-z0-9]{8,}",
+      "ConstraintDescription": "must be valid EIP allocation ID."
+    },
+    "ServerSubnetId": {
+      "Description": "Server Subnet ID",
+      "Type": "String",
+      "AllowedPattern": "subnet-[a-z0-9]{8,}",
+      "ConstraintDescription": "must be valid Subnet ID."
+    },
+    "ServerVPCId": {
+      "Description": "Server VPC ID",
+      "Type": "String",
+      "AllowedPattern": "vpc-[a-z0-9]{8,}",
+      "ConstraintDescription": "must be valid VPC ID."
+    },
+    "ServerSharedCIDRs": {
+      "Description": "Subnet CIDRs exposed on the server side",
+      "Type": "String",
+      "AllowedPattern": "(([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}\\s+)*([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}",
+      "ConstraintDescription": "must be valid CIDR(s)"
+    },
+
+    "ClientName": {
+      "Description": "Client name, usually service name + stage. Never confuse with `Service` tag on the next stage.",
+      "Type": "String",
+      "AllowedPattern": "[a-zA-Z0-9\\-_]+",
+      "ConstraintDescription": "must contain only [a-zA-Z0-9\\-_]."
+    },
+    "ClientEIP": {
+      "Description": "Client elastic IP",
+      "Type": "String",
+      "AllowedPattern": "([0-9]{1,3}\\.){3}[0-9]{1,3}",
+      "ConstraintDescription": "must contain only alphanumeric characters."
+    },
+    "ClientEIPId": {
+      "Description": "Client Elastic IP allocation ID",
+      "Type": "String",
+      "AllowedPattern": "eipalloc-[a-z0-9]{8,}",
+      "ConstraintDescription": "must be valid EIP allocation ID."
+    },
+    "ClientSubnetId": {
+      "Description": "Client Subnet ID",
+      "Type": "String",
+      "AllowedPattern": "subnet-[a-z0-9]{8,}",
+      "ConstraintDescription": "must be valid Subnet ID."
+    },
+    "ClientVPCId": {
+      "Description": "Client VPC ID",
+      "Type": "String",
+      "AllowedPattern": "vpc-[a-z0-9]{8,}",
+      "ConstraintDescription": "must be valid VPC ID."
+    },
+    "ClientSharedCIDRs": {
+      "Description": "Subnet CIDRs exposed from the client side",
+      "Type": "String",
+      "AllowedPattern": "(([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}\\s+)*([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}",
+      "ConstraintDescription": "must be valid CIDR(s)"
+    }
+  },
+
+  "Conditions": {
+    "IsServer": {
+        "Fn::Or": [
+            {"Fn::Equals": [{"Ref": "MySide"}, "Server"]},
+            {"Fn::Equals": [{"Ref": "MySide"}, "TestBoth"]}
+        ]
+    },
+    "IsClient": {
+        "Fn::Or": [
+            {"Fn::Equals": [{"Ref": "MySide"}, "Client"]},
+            {"Fn::Equals": [{"Ref": "MySide"}, "TestBoth"]}
+        ]
+    }
+  },
+
+  "Mappings": {
+    "AWSInstanceType2Arch": {
+      "t1.micro":   {"Arch": "64"},
+      "t2.micro":   {"Arch": "64HVM"},
+      "t2.small":   {"Arch": "64HVM"},
+      "t2.medium":  {"Arch": "64HVM"},
+      "m1.small":   {"Arch": "64"},
+      "m1.medium":  {"Arch": "64"},
+      "m1.large":   {"Arch": "64"},
+      "m1.xlarge":  {"Arch": "64"},
+      "m3.medium":  {"Arch": "64HVM"},
+      "m3.large":   {"Arch": "64HVM"},
+      "m3.xlarge":  {"Arch": "64HVM"},
+      "m3.2xlarge": {"Arch": "64HVM"},
+      "c3.4xlarge": {"Arch": "64HVM"},
+      "c3.8xlarge": {"Arch": "64HVM"}
+    },
+    "AWSRegionArch2AMI": {
+      "us-east-1": {        "64": "ami-50842d38", "64HVM": "ami-08842d60"},
+      "us-west-2": {        "64": "ami-af86c69f", "64HVM": "ami-8786c6b7"},
+      "us-west-1": {        "64": "ami-c7a8a182", "64HVM": "ami-cfa8a18a"},
+      "eu-west-1": {        "64": "ami-aa8f28dd", "64HVM": "ami-748e2903"},
+      "ap-southeast-1": {   "64": "ami-20e1c572", "64HVM": "ami-d6e1c584"},
+      "ap-southeast-2": {   "64": "ami-8b4724b1", "64HVM": "ami-fd4724c7"},
+      "ap-northeast-1": {   "64": "ami-21072820", "64HVM": "ami-35072834"},
+      "sa-east-1": {        "64": "ami-9d6cc680", "64HVM": "ami-956cc688"}
+    }
+  },
+
+  "Resources": {
+    "ServerSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Condition": "IsServer",
+      "Properties": {
+        "GroupDescription": {"Fn::Join": ["", ["VPN Server to ", {"Ref": "ClientName"}]]},
+        "SecurityGroupIngress": [
+          {"IpProtocol":"tcp","FromPort":  "50","ToPort":  "51","CidrIp":{"Fn::Join": ["", [{"Ref":"ClientEIP"}, "/32"]]}},
+          {"IpProtocol":"udp","FromPort": "500","ToPort": "500","CidrIp":{"Fn::Join": ["", [{"Ref":"ClientEIP"}, "/32"]]}},
+          {"IpProtocol":"udp","FromPort":"4500","ToPort":"4500","CidrIp":{"Fn::Join": ["", [{"Ref":"ClientEIP"}, "/32"]]}}
+        ],
+        "Tags": [
+            {"Key": "Name", "Value": {"Fn::Join": ["", ["VPN-to-", {"Ref": "ClientName"}]]}}
+        ],
+        "VpcId": {"Ref": "ServerVPCId"}
+      }
+    },
+    "ServerDummyEIP": {
+      "Type" : "AWS::EC2::EIP",
+      "Condition": "IsServer",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "ServerENI": {
+      "Type" : "AWS::EC2::NetworkInterface",
+      "Condition": "IsServer",
+      "Properties" : {
+        "SourceDestCheck" : false,
+        "GroupSet" : [ {"Ref": "ServerSG"}],
+        "SubnetId" : {"Ref": "ServerSubnetId"}
+      }
+    },
+    "ServerEIPAssoc" : {
+      "Type" : "AWS::EC2::EIPAssociation",
+      "Condition": "IsServer",
+      "Properties" : {
+        "NetworkInterfaceId" : { "Ref" : "ServerENI" },
+        "AllocationId" : {"Ref": "ServerEIPId"}
+      }
+    },
+    "ServerVPN": {
+      "Type": "AWS::EC2::Instance",
+      "Condition": "IsServer",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {"yum" : {"openswan": []}},
+            "files" : {
+              "/etc/ipsec.d/instavpn.secrets" : {
+                "content" : {"Fn::Join": ["", [
+                    {"Ref": "ServerEIP"}, " ", {"Ref": "ClientEIP"}, ": PSK \"", {"Ref": "SharedSecret"}, "\"\n\n"
+                ]]},
+                "mode"    : "000600",
+                "owner"   : "root",
+                "group"   : "root"
+              },
+              "/etc/ipsec.d/instavpn.conf" : {
+                "content" : {"Fn::Join": ["", [
+                    "conn instavpn\n",
+                    "\ttype=tunnel\n",
+                    "\tauthby=secret\n",
+                    "\tleft=%defaultroute\n",
+                    "\tleftnexthop=%defaultroute\n",
+                    "\tleftid=", {"Ref":"ServerEIP"}, "\n",
+                    "\tleftsubnets={", {"Ref":"ServerSharedCIDRs"}, "}\n",
+                    "\tright=", {"Ref":"ClientEIP"}, "\n",
+                    "\trightsubnets={", {"Ref":"ClientSharedCIDRs"}, "}\n",
+                    "\tpfs=yes\n",
+                    "\tauto=start\n\n"
+                ]]},
+                "mode"    : "000644",
+                "owner"   : "root",
+                "group"   : "root"
+              }
+            },
+            "services" : {
+              "sysvinit" : {
+                "ipsec"    : { "enabled": "true", "ensureRunning": "true" }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "NetworkInterfaces": [{"DeviceIndex": "0", "NetworkInterfaceId": {"Ref": "ServerENI"}}],
+        "Tags": [{"Key": "Name", "Value": {"Fn::Join": ["", ["VPN-to-", {"Ref": "ClientName"}]]}}],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -ex\n",
+          "exec > >(tee >(logger -t \"user-data\")) 2> >(tee >(logger -t \"user-data: ERROR\") >&2)\n",
+
+          "yum install -y aws-cfn-bootstrap\n",
+          "yum update -y\n",
+
+          "# Helper function\n",
+          "function error_exit\n",
+          "{\n",
+          "  /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "ServerWaitHandle" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackId" }, " -r ServerVPN ",
+          "    --region ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
+
+          "sed -i 's/^#include \\/etc\\/ipsec.d\\//include \\/etc\\/ipsec.d\\//' /etc/ipsec.conf\n",
+          "sed -i \"s@net.ipv4.ip_forward = 0@net.ipv4.ip_forward = 1\\nnet.ipv4.conf.all.accept_redirects = 0\\nnet.ipv4.conf.all.send_redirects = 0@\" /etc/sysctl.conf\n",
+
+          "service network restart\n",
+          "service ipsec restart\n",
+
+          "iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE\n",
+          "iptables-save > /etc/sysconfig/iptables\n",
+
+          "/opt/aws/bin/cfn-signal -e 0 -r \"InstaVPN server setup complete\" '", { "Ref" : "ServerWaitHandle" }, "'\n"
+
+        ]]}}
+      }
+    },
+
+    "ServerWaitHandle" : {
+      "Type" : "AWS::CloudFormation::WaitConditionHandle",
+      "Condition": "IsServer"
+    },
+    "ServerWaitCondition" : {
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "Condition": "IsServer",
+      "DependsOn" : "ServerVPN",
+      "Properties" : {
+        "Handle" : {"Ref" : "ServerWaitHandle"},
+        "Timeout" : "900"
+      }
+    },
+
+    "ClientSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Condition": "IsClient",
+      "Properties": {
+        "GroupDescription": {"Fn::Join": ["", ["VPN Client to ", {"Ref": "ServerName"}]]},
+        "SecurityGroupIngress": [
+          {"IpProtocol":"tcp","FromPort":  "50","ToPort":  "51","CidrIp":{"Fn::Join": ["", [{"Ref":"ServerEIP"}, "/32"]]}},
+          {"IpProtocol":"udp","FromPort": "500","ToPort": "500","CidrIp":{"Fn::Join": ["", [{"Ref":"ServerEIP"}, "/32"]]}},
+          {"IpProtocol":"udp","FromPort":"4500","ToPort":"4500","CidrIp":{"Fn::Join": ["", [{"Ref":"ServerEIP"}, "/32"]]}}
+        ],
+        "Tags": [
+            {"Key": "Name", "Value": {"Fn::Join": ["", ["VPN-to-", {"Ref": "ServerName"}]]}}
+        ],
+        "VpcId": {"Ref": "ClientVPCId"}
+      }
+    },
+    "ClientDummyEIP": {
+      "Type" : "AWS::EC2::EIP",
+      "Condition": "IsClient",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "ClientENI": {
+      "Type" : "AWS::EC2::NetworkInterface",
+      "Condition": "IsClient",
+      "Properties" : {
+        "SourceDestCheck" : false,
+        "GroupSet" : [ {"Ref": "ClientSG"}],
+        "SubnetId" : {"Ref": "ClientSubnetId"}
+      }
+    },
+    "ClientEIPAssoc" : {
+      "Type" : "AWS::EC2::EIPAssociation",
+      "Condition": "IsClient",
+      "Properties" : {
+        "NetworkInterfaceId" : { "Ref" : "ClientENI" },
+        "AllocationId" : {"Ref": "ClientEIPId"}
+      }
+    },
+    "ClientVPN": {
+      "Type": "AWS::EC2::Instance",
+      "Condition": "IsClient",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {"yum" : {"openswan": []}},
+            "files" : {
+              "/etc/ipsec.d/instavpn.secrets" : {
+                "content" : {"Fn::Join": ["", [
+                    {"Ref": "ClientEIP"}, " ", {"Ref": "ServerEIP"}, ": PSK \"", {"Ref": "SharedSecret"}, "\"\n\n"
+                ]]},
+                "mode"    : "000600",
+                "owner"   : "root",
+                "group"   : "root"
+              },
+              "/etc/ipsec.d/instavpn.conf" : {
+                "content" : {"Fn::Join": ["", [
+                    "conn instavpn\n",
+                    "\ttype=tunnel\n",
+                    "\tauthby=secret\n",
+                    "\tleft=%defaultroute\n",
+                    "\tleftnexthop=%defaultroute\n",
+                    "\tleftid=", {"Ref":"ClientEIP"}, "\n",
+                    "\tleftsubnets={", {"Ref":"ClientSharedCIDRs"}, "}\n",
+                    "\tright=", {"Ref":"ServerEIP"}, "\n",
+                    "\trightsubnets={", {"Ref":"ServerSharedCIDRs"}, "}\n",
+                    "\tpfs=yes\n",
+                    "\tauto=start\n\n"
+                ]]},
+                "mode"    : "000644",
+                "owner"   : "root",
+                "group"   : "root"
+              }
+            },
+            "services" : {
+              "sysvinit" : {
+                "ipsec"    : { "enabled": "true", "ensureRunning": "true" }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "NetworkInterfaces": [{"DeviceIndex": "0", "NetworkInterfaceId": {"Ref": "ClientENI"}}],
+        "Tags": [{"Key": "Name", "Value": {"Fn::Join": ["", ["VPN-to-", {"Ref": "ServerName"}]]}}],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -ex\n",
+          "exec > >(tee >(logger -t \"user-data\")) 2> >(tee >(logger -t \"user-data: ERROR\") >&2)\n",
+
+          "yum install -y aws-cfn-bootstrap\n",
+          "yum update -y\n",
+
+          "# Helper function\n",
+          "function error_exit\n",
+          "{\n",
+          "  /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "ClientWaitHandle" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackId" }, " -r ClientVPN ",
+          "    --region ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
+
+          "sed -i 's/^#include \\/etc\\/ipsec.d\\//include \\/etc\\/ipsec.d\\//' /etc/ipsec.conf\n",
+          "sed -i \"s@net.ipv4.ip_forward = 0@net.ipv4.ip_forward = 1\\nnet.ipv4.conf.all.accept_redirects = 0\\nnet.ipv4.conf.all.send_redirects = 0@\" /etc/sysctl.conf\n",
+
+          "service network restart\n",
+          "service ipsec restart\n",
+
+          "/opt/aws/bin/cfn-signal -e 0 -r \"InstaVPN client setup complete\" '", { "Ref" : "ClientWaitHandle" }, "'\n"
+
+        ]]}}
+      }
+    },
+
+    "ClientWaitHandle" : {
+      "Type" : "AWS::CloudFormation::WaitConditionHandle",
+      "Condition": "IsClient"
+    },
+
+    "ClientWaitCondition" : {
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "Condition": "IsClient",
+      "DependsOn" : "ClientVPN",
+      "Properties" : {
+        "Handle" : {"Ref" : "ClientWaitHandle"},
+        "Timeout" : "900"
+      }
+    }
+  },
+
+  "Outputs": {
+    "ServerInstanceId": {
+      "Condition": "IsServer",
+      "Value": {"Ref": "ServerVPN"}
+    },
+    "ServerSGId": {
+      "Condition": "IsServer",
+      "Value": {"Ref": "ServerSG"}
+    },
+    "ClientInstanceId": {
+      "Condition": "IsClient",
+      "Value": {"Ref": "ClientVPN"}
+    },
+    "ClientSGId": {
+      "Condition": "IsClient",
+      "Value": {"Ref": "ClientSG"}
+    }
+  }
+}

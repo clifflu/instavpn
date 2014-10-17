@@ -1,0 +1,51 @@
+{
+    "server": {
+        "name": "DCS",
+        "identity": {
+            "region": "us-east-1",
+            "role_arn": null,
+            "cred": {
+                "access": null,
+                "secret": null,
+                "session": null
+            }
+        },
+        "res": {
+            "subnet_id": "",
+            "servers_allowed": []
+        },
+        "ipsec": {
+            "subnets": []
+        },
+        "flags": {
+            "new_route_table": true
+        }
+    },
+    "client": {
+        "name": null,
+        "identity": {
+            "region": "us-east-1",
+            "role_arn": null,
+            "cred": {
+                "access": null,
+                "secret": null,
+                "session": null
+            }
+        },
+        "res": {
+            "subnet_id": "",
+            "route_table_id": null
+        },
+        "ipsec": {
+            "subnets": []
+        },
+        "flags": {
+            "new_route_table": true
+        }
+    },
+    "params": {
+        "InstanceType": null
+    },
+    "tags": {
+    }
+}
