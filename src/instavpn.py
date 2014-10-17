@@ -36,7 +36,8 @@ def build_config(arg):
     if arg["--interactive"]:
         return ask_config()
     elif arg["--json"]:
-        return load_json(arg["<CONFIG>"])
+        return load_json(sys.stdin) if '-' == arg["<CONFIG>"] \
+            else load_json(arg["<CONFIG>"])
 
     return None
 
@@ -53,7 +54,10 @@ def instavpn():
     try:
         config = build_config(arg)
     except IOError as e:
-        show.error('IOError', "can't read from json file `%s`." % arg["<CONFIG>"])
+        show.error('IOError:', "Can't read from `%s`." % arg["<CONFIG>"])
+        sys.exit(1)
+    except ValueError as e:
+        show.error('ValueError:', "Config files should be valid json.")
         sys.exit(1)
 
     # Display and Save config files
@@ -65,8 +69,7 @@ def instavpn():
                 dump(config, fp, indent=4)
             show.output("Saved", "to `%s`" % arg["<CONFIG>"])
         except IOError:
-            show.error("Can't save config to %s." % arg["<CONFIG>"])
-            show.verbose("Copy and paste json config if you wan't to keep it.")
+            show.error("Can't save to %s." % arg["<CONFIG>"])
 
     # `params` and `tags` are built later in `chk_session()` call, where related
     # entries in `config[*]` should also follow AWS convention to use CamelCase,

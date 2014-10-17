@@ -70,7 +70,7 @@ def _ask_tags(config):
         return
 
     # Update existing keys
-    show.unless_quiet("Enter tag values for newly created AWS resources." )
+    show.unless_quiet(msg="Enter tag values for newly created AWS resources." )
 
     for k, v in config["tags"].iteritems():
         v = ask.until("Tag `%s`, Value: " % k, ".*", default = v)
@@ -81,10 +81,10 @@ def _ask_tags(config):
 
 def _ask_dest(servers_allowed):
     """Destinations to be allowed on Server SG"""
-    show.unless_quiet("Enter servers to be accesed from client's network. "
+    show.unless_quiet(msg="Enter servers to be accesed from client's network. "
         "Format: [PROTOCOL:]IP[:Port], Example: `tcp:10.42.3.3:3306`. ")
 
-    show.verbose("Protocol: tcp|udp|all, default = tcp; "
+    show.verbose(msg="Protocol: tcp|udp|all, default = tcp; "
         "Port should be numbers, default is all (0-65535)")
 
     while True:
@@ -101,7 +101,7 @@ def _ask_dest(servers_allowed):
         if groups[2] is None: groups[2] = 'all'
 
         if 'all' == groups[0] and 'all' != groups[2]:
-            show.unless_quiet("Illegal input, port must be `all` if proto = `all`")
+            show.unless_quiet(msg="Illegal input, port must be `all` if proto = `all`")
             continue
 
         servers_allowed.append(dict(zip(['proto', 'ip', 'port'], groups)))
@@ -112,7 +112,7 @@ def _ask_access(config_side):
         regions = load_config("region.json")
         suggestions = load_config("instavpn.json")["suggestions"]["region"]
 
-        show.unless_quiet("Region where AWS resources are located in.")
+        show.unless_quiet(msg="AWS Region where InstaVPN should connect to.")
         config_side['identity']['region'] = ask.choose(
             "Region", suggestions, 0,
             list(set(suggestions.keys()).union(set(regions)))
@@ -121,7 +121,7 @@ def _ask_access(config_side):
         pass
 
     # Credentials
-    show.unless_quiet("Answer `y` to connect to AWS with defined crednetials; "
+    show.unless_quiet(msg="Answer `y` to connect to AWS with defined crednetials; "
         "`n` for default ones defined in boto config or instance profile.")
 
     use_custom_cred = ask.until("Use custom credentials [Y/n]: ", "[yYnN]", default='y')
@@ -134,13 +134,13 @@ def _ask_access(config_side):
         config_side['identity']['cred']['access'] = ask.until("Access Key: ", ".+")
         config_side['identity']['cred']['secret'] = ask.until("Secret Key: ", ".+")
 
-        show.unless_quiet("Input your session token if you acquired your credentials via "
+        show.unless_quiet(msg="Input your session token if you acquired your credentials via "
             "STS/IAM Role. Feel free to ignore this column otherwise")
         sesskey = ask.until("Session Token: ", ".+", optional=True)
         config_side['identity']['cred']['session'] = sesskey
 
     # Role
-    show.unless_quiet("Enter Role ARN if you access those resources as an IAM Role. "
+    show.unless_quiet(msg="Enter Role ARN if you access those resources as an IAM Role. "
         "Leave it empty if you don't use IAM Role")
 
     role_arn = ask.until("Role ARN: ", "arn:aws:iam::\d{12}:role/.+", optional=True)
@@ -151,14 +151,14 @@ def _ask_ec2_vpc(config_side):
 
     # Subnet
 
-    show.unless_quiet("Enter Subnet ID, eg., subnet-3345678.")
+    show.unless_quiet(msg="Enter Subnet ID, eg., subnet-3345678.")
     subnet_id = ask.until("Subnet ID: ", "^subnet-[0-9a-f]{8,}$")
     config_side['res']['subnet_id'] = subnet_id
 
 def _ask_subnets(config_side):
-    show.unless_quiet("Enter routable subnet CIDRs, one at a line. Enter a single dot (.) "
-        " when finished. Example: 10.0.0.0/24. Subnet CIDR will be added automatically to "
-        "the list in a later stage.")
+    show.unless_quiet(msg="Enter routable subnet CIDRs, one at a line. Enter a single dot (.) "
+        "when done. Example: 10.0.0.0/24. The list will be extended with client subnet CIDR "
+        "in a later stage.")
 
     while True:
         sn = ask.until(
@@ -171,7 +171,7 @@ def _ask_subnets(config_side):
             break
 
 def _ask_route_table(config_side):
-    show.unless_quiet("Enter route table ID to be modified by InstaVPN. "
+    show.unless_quiet(msg="Enter route table ID to be modified by InstaVPN. "
         "Client should be responsible to maintain and config that route table. "
         "Example: rtb-12345678. ")
 

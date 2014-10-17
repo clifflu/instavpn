@@ -27,7 +27,7 @@ def chk_session(session):
 
     for rule in rules:
         try:
-            show.unless_quiet(title="Checking", msg=rule[0])
+            show.unless_quiet("Checking", rule[0])
             assert rule[1](session)
         except Exception as e:
             show.verbose(msg = "Config check `%s` failed%s%s" % (

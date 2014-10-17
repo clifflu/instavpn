@@ -76,14 +76,14 @@ class show (object):
         return cls.__show(COLORTBL["output"], title, msg, **kwargs)
 
     @classmethod
-    def unless_quiet(cls, msg = None, title = None, **kwargs):
+    def unless_quiet(cls, title = None, msg = None, **kwargs):
         """Shows information unless in Quiet mode"""
         if cls.verbosity > cls.QUIET:
             return cls.__show(COLORTBL["uq"], title, msg, **kwargs)
         return True
 
     @classmethod
-    def verbose(cls, msg = None, title = None , **kwargs):
+    def verbose(cls, title = None, msg = None , **kwargs):
         """Shows information on verbose mode"""
 
         if cls.verbosity >= cls.VERBOSE:

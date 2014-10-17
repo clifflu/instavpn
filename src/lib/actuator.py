@@ -82,7 +82,7 @@ def post_conf(session):
     _pc_client_rtb(session)
 
 def _pc_server_sg(session):
-    show.verbose("Cleaning up default Server egress rules")
+    show.verbose(msg="Cleaning up default Server egress rules")
 
     conn_ec2 = session["conn"]["server"]("ec2")
     sg_id = _from_cfn_output("ServerSGId", Stack=session["stacks"]["server"])
@@ -98,7 +98,7 @@ def _pc_server_sg(session):
         )
 
     for dest in session["config"]["server"]["res"]["servers_allowed"]:
-        show.verbose("Authorizing access to %s:%s:%s" % (dest["proto"], dest["ip"], dest["port"]))
+        show.verbose(msg="Granting access to %s:%s:%s" % (dest["proto"], dest["ip"], dest["port"]))
         conn_ec2.authorize_security_group_egress(
             group_id = sg_id,
             ip_protocol = dest["proto"] if dest["proto"] != 'all' else "-1",
@@ -131,7 +131,7 @@ def _pc_client_rtb(session):
     rtb_id = session["config"]["client"]["res"]["route_table_id"]
     if rtb_id is None: return True
 
-    show.verbose("Modifying client Route Table")
+    show.verbose(msg="Changing client Route Table")
 
     conn = session["conn"]["client"]
 
@@ -142,11 +142,11 @@ def _pc_client_rtb(session):
 
     for route in rtb.routes:
         if route.destination_cidr_block in dest_cidrs:
-            show.verbose("Removing route to %s" % route.destination_cidr_block)
+            show.verbose(msg="Removing route to %s" % route.destination_cidr_block)
             conn("vpc").delete_route(rtb.id, route.destination_cidr_block)
 
     for cidr in dest_cidrs:
-        show.verbose("Creating route to %s" % cidr)
+        show.verbose(msg="Creating route to %s" % cidr)
         conn("vpc").create_route(rtb.id, cidr, instance_id = client_instnace_id)
 
 def _from_cfn_output(key, Stack=None, outputs=None):
@@ -168,7 +168,7 @@ def _wait_cfn(session, interval = 5):
     stacks = session["stacks"]
     okay = {k : False for k in stacks}
 
-    show.verbose("Waiting for AWS Cloud Formation")
+    show.verbose(msg="Waiting for AWS Cloud Formation")
 
     while not all(okay.values()):
 

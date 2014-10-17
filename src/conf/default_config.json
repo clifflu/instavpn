@@ -16,9 +16,6 @@
         },
         "ipsec": {
             "subnets": []
-        },
-        "flags": {
-            "new_route_table": true
         }
     },
     "client": {
@@ -38,9 +35,6 @@
         },
         "ipsec": {
             "subnets": []
-        },
-        "flags": {
-            "new_route_table": true
         }
     },
     "params": {
