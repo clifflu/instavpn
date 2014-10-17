@@ -19,11 +19,9 @@ def load_json(filename):
 
         Raises exception if the file is unaccessible or malformatted
     """
-    from collections import OrderedDict
-
     if type(filename) is str:
         with open(filename) as fp:
-            return json.load(fp, object_pairs_hook=OrderedDict)
+            return json.load(fp)
 
-    return json.load(filename, object_pairs_hook=OrderedDict)
+    return json.load(filename)
 
