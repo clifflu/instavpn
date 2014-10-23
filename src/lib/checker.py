@@ -14,7 +14,7 @@ while `tags` and `params` are built accordingly in rule_99.
 
 from iptools import IpRange
 from boto.exception import EC2ResponseError
-from random import randint
+from random import SystemRandom
 from base64 import urlsafe_b64encode
 
 from .aws_conn import AWSConn
@@ -242,7 +242,7 @@ def rule_99_fill_tags_params(session):
 
     def shared_secret():
         bits = load_config("instavpn.json")["shared_secret_bits"]
-
+        randint = SystemRandom().randint
         return urlsafe_b64encode("".join(chr(randint(0, 255)) for _ in xrange(bits/8)))
 
     session["params"] += [
