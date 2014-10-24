@@ -12,9 +12,10 @@ while `tags` and `params` are built accordingly in rule_99.
 
 """
 
+import random
+
 from iptools import IpRange
 from boto.exception import EC2ResponseError
-from random import SystemRandom
 from base64 import urlsafe_b64encode
 
 from .aws_conn import AWSConn
@@ -52,6 +53,18 @@ def cidr_overlaps(cidr1, cidr2):
 
     return True
 
+def _create_shared_secret():
+    """Creates shared secret with #bits assigned in instavpn.json
+
+    Uses random.SystemRandom.randint, which pulls randomness from /dev/urandom,
+    and thus system entropy pool when it's available, then falls back to prng
+    if it's empty.
+    """
+
+    randint = random.SystemRandom().randint
+    bits = load_config("instavpn.json")["shared_secret_bits"]
+    return urlsafe_b64encode("".join(chr(randint(0, 255)) for _ in xrange(bits/8)))
+
 # ============================================================================
 # 00: Integrity and job serial
 
@@ -60,9 +73,13 @@ def rule_00_config_is_dict(session):
     return isinstance(session["config"], dict)
 
 def rule_01_set_job_id(session):
-    """Pick instavpn ID as hex string to identify task"""
+    """Pick instavpn ID as hex string to identify task
 
-    my_id = "".join("%02x" % randint(0,255) for _ in xrange(4))
+    Use randint from random instead of SystemRandom, which is less secure, but
+    does not consume system entropy.
+    """
+
+    my_id = "".join("%02x" % random.randint(0,255) for _ in xrange(4))
 
     session["config"]["tags"]["instavpn"] = my_id
     show.output("Instavpn Task ID", "is %s" % my_id)
@@ -240,15 +257,10 @@ def rule_99_fill_tags_params(session):
             (prefix + "VPCId"       , subnet.vpc_id)
         ]
 
-    def shared_secret():
-        bits = load_config("instavpn.json")["shared_secret_bits"]
-        randint = SystemRandom().randint
-        return urlsafe_b64encode("".join(chr(randint(0, 255)) for _ in xrange(bits/8)))
-
     session["params"] += [
         ("ServerName", "DCS"),
         ("ClientName", session["config"]["tags"]['Service']),
-        ("SharedSecret", shared_secret())
+        ("SharedSecret", _create_shared_secret())
     ]
 
     session["params"] += _params(session, "server", "Server")
