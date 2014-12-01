@@ -1,0 +1,355 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Creates demo suite for InstaVPN",
+
+  "Parameters" : {
+    "InstanceType" : {
+      "Description" : "Test server instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues": ["t1.micro","t2.micro","t2.small","t2.medium","m1.small","m1.medium","m1.large","m1.xlarge","m3.medium","m3.large","m3.xlarge","m3.2xlarge","c3.4xlarge","c3.8xlarge"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    }
+  },
+
+  "Mappings": {
+    "AWSInstanceType2Arch": {
+      "t1.micro":   {"Arch": "64"},
+      "t2.micro":   {"Arch": "64HVM"},
+      "t2.small":   {"Arch": "64HVM"},
+      "t2.medium":  {"Arch": "64HVM"},
+      "m1.small":   {"Arch": "64"},
+      "m1.medium":  {"Arch": "64"},
+      "m1.large":   {"Arch": "64"},
+      "m1.xlarge":  {"Arch": "64"},
+      "m3.medium":  {"Arch": "64HVM"},
+      "m3.large":   {"Arch": "64HVM"},
+      "m3.xlarge":  {"Arch": "64HVM"},
+      "m3.2xlarge": {"Arch": "64HVM"},
+      "c3.4xlarge": {"Arch": "64HVM"},
+      "c3.8xlarge": {"Arch": "64HVM"}
+    },
+    "AWSRegionArch2AMI": {
+      "us-east-1": {        "64": "ami-50842d38", "64HVM": "ami-08842d60"},
+      "us-west-2": {        "64": "ami-af86c69f", "64HVM": "ami-8786c6b7"},
+      "us-west-1": {        "64": "ami-c7a8a182", "64HVM": "ami-cfa8a18a"},
+      "eu-west-1": {        "64": "ami-aa8f28dd", "64HVM": "ami-748e2903"},
+      "ap-southeast-1": {   "64": "ami-20e1c572", "64HVM": "ami-d6e1c584"},
+      "ap-southeast-2": {   "64": "ami-8b4724b1", "64HVM": "ami-fd4724c7"},
+      "ap-northeast-1": {   "64": "ami-21072820", "64HVM": "ami-35072834"},
+      "sa-east-1": {        "64": "ami-9d6cc680", "64HVM": "ami-956cc688"}
+    }
+  },
+
+  "Resources" : {
+    "DcVpc": {
+      "Type" : "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16"
+      }
+    },
+    "DcBrSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock" : "10.0.0.0/24",
+        "VpcId" : { "Ref" : "DcVpc" }
+      }
+    },
+    "DcWebSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock" : "10.0.128.0/24",
+        "VpcId" : { "Ref" : "DcVpc" }
+      }
+    },
+
+    "DcWebSg" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP and SSH access",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0"}
+        ],
+        "VpcId": { "Ref": "DcVpc" }
+      }
+    },
+
+    "DcWeb": {
+      "Type": "AWS::EC2::Instance",
+      "DependsOn": "DcRoute",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {
+              "yum" : {
+                "httpd"      : [],
+                "php"         : []
+              }
+            },
+
+            "files" : {
+              "/var/www/html/index.php" : {
+                "content" : "<?php\nprintf('DcWeb: %s', $_SERVER['REMOTE_ADDR']);",
+                "mode"    : "000644",
+                "owner"   : "root",
+                "group"   : "root"
+              }
+            },
+
+            "services" : {
+              "sysvinit" : {
+                "httpd" : {
+                  "enabled"       : "true",
+                  "ensureRunning" : "true"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "KeyName": "clifflu@clNBTrend_20140808",
+        "NetworkInterfaces": [{
+          "DeviceIndex": 0,
+          "AssociatePublicIpAddress": true,
+          "GroupSet": [{"Ref" : "DcWebSg"}],
+          "SubnetId": { "Ref": "DcWebSubnet" }
+        }],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+          "yum update -y\n",
+
+          "# Helper function\n",
+          "function error_exit\n",
+          "{\n",
+          "  /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "DcWebWaitHandle" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "# Install packages\n",
+          "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackId" }, " -r DcWeb ",
+          "    --region ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
+
+          "# All is well so signal success\n",
+          "/opt/aws/bin/cfn-signal -e 0 -r \"Tracks setup complete\" '", { "Ref" : "DcWebWaitHandle" }, "'\n"
+        ]]}}
+      }
+    },
+
+    "DcWebWaitHandle" : { "Type" : "AWS::CloudFormation::WaitConditionHandle" },
+    "DcWebWaitCondition" : {
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "DependsOn" : "DcWeb",
+      "Properties" : {
+        "Handle" : {"Ref" : "DcWebWaitHandle"},
+        "Timeout" : "900"
+      }
+    },
+
+    "DcIgw": { "Type" : "AWS::EC2::InternetGateway" },
+    "DcIgwAttach": {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "InternetGatewayId" : { "Ref": "DcIgw" },
+        "VpcId" : { "Ref": "DcVpc" }
+      }
+    },
+    "DcRT": {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref": "DcVpc"}
+      }
+    },
+    "DcRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : "DcIgw",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "DcRT" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "DcIgw" }
+      }
+    },
+    "DcRouteAssocWeb": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "DcWebSubnet"},
+        "RouteTableId": {"Ref": "DcRT"}
+      }
+    },
+    "DcRouteAssocBr": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "DcBrSubnet"},
+        "RouteTableId": {"Ref": "DcRT"}
+      }
+    },
+
+    "RdVpc": {
+      "Type" : "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.33.0.0/16"
+      }
+    },
+    "RdBrSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock" : "10.33.0.0/24",
+        "VpcId" : { "Ref" : "RdVpc" }
+      }
+    },
+
+    "RdTesterSg" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP and SSH access",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0"}
+        ],
+        "VpcId": { "Ref": "RdVpc" }
+      }
+    },
+
+    "RdTester": {
+      "Type": "AWS::EC2::Instance",
+      "DependsOn": "RdRoute",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {
+              "yum" : {
+                "httpd"      : []
+              }
+            },
+
+            "files" : {
+              "/root/probe.sh" : {
+                "content" : { "Fn::Join": ["", [
+                  "#!/bin/bash\n",
+                  "cd /var/www/html\n",
+                  "while true; do\n",
+                  "wget -q -O index.html -t1 -T3 ", { "Fn::GetAtt": ["DcWeb", "PrivateIp"]}, " || echo timeout > index.html\n",
+                  "sleep 15\n",
+                  "done\n"
+                ]]},
+                "mode"    : "000755",
+                "owner"   : "root",
+                "group"   : "root"
+              }
+            },
+
+            "services" : {
+              "sysvinit" : {
+                "httpd" : {
+                  "enabled"       : "true",
+                  "ensureRunning" : "true"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "KeyName": "clifflu@clNBTrend_20140808",
+        "NetworkInterfaces": [{
+          "DeviceIndex": 0,
+          "AssociatePublicIpAddress": true,
+          "GroupSet": [{"Ref" : "RdTesterSg"}],
+          "SubnetId": { "Ref": "RdBrSubnet" }
+        }],
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+          "yum update -y\n",
+
+          "# Helper function\n",
+          "function error_exit\n",
+          "{\n",
+          "  /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "RdTesterWaitHandle" }, "'\n",
+          "  exit 1\n",
+          "}\n",
+
+          "# Install packages\n",
+          "/opt/aws/bin/cfn-init -s ", { "Ref" : "AWS::StackId" }, " -r RdTester ",
+          "    --region ", { "Ref" : "AWS::Region" }, " || error_exit 'Failed to run cfn-init'\n",
+
+          "# Run probe script\n",
+          "/root/probe.sh &\n",
+
+          "# All is well so signal success\n",
+          "/opt/aws/bin/cfn-signal -e 0 -r \"Tracks setup complete\" '", { "Ref" : "RdTesterWaitHandle" }, "'\n"
+        ]]}}
+      }
+    },
+
+    "RdTesterWaitHandle" : { "Type" : "AWS::CloudFormation::WaitConditionHandle" },
+    "RdTesterWaitCondition" : {
+      "Type" : "AWS::CloudFormation::WaitCondition",
+      "DependsOn" : "RdTester",
+      "Properties" : {
+        "Handle" : {"Ref" : "RdTesterWaitHandle"},
+        "Timeout" : "900"
+      }
+    },
+
+    "RdIgw": { "Type" : "AWS::EC2::InternetGateway" },
+    "RdIgwAttach": {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "InternetGatewayId" : { "Ref": "RdIgw" },
+        "VpcId" : { "Ref": "RdVpc" }
+      }
+    },
+    "RdRT": {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref": "RdVpc"}
+      }
+    },
+    "RdRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "DependsOn" : "RdIgw",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "RdRT" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "RdIgw" }
+      }
+    },
+    "RdRouteAssoc": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {"Ref": "RdBrSubnet"},
+        "RouteTableId": {"Ref": "RdRT"}
+      }
+    }
+
+  },
+
+  "Outputs" : {
+    "ServerIP": {
+        "Value": {"Fn::GetAtt": ["DcWeb", "PublicIp"]}
+    },
+    "TesterIP": {
+        "Value": {"Fn::GetAtt": ["RdTester", "PublicIp"]}
+    },
+    "ServerSubnet": {
+        "Value": {"Ref": "DcBrSubnet"}
+    },
+    "ServerPrivateIP": {
+        "Value": {"Fn::GetAtt": ["DcWeb", "PrivateIp"]}
+    },
+    "ClientSubnet": {
+        "Value": {"Ref": "RdBrSubnet"}
+    },
+    "ClientRouteTable": {
+        "Value": {"Ref": "RdRT"}
+    }
+  }
+}
