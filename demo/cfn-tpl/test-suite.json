@@ -91,7 +91,7 @@
 
             "files" : {
               "/var/www/html/index.php" : {
-                "content" : "<?php\nprintf('DcWeb: %s', $_SERVER['REMOTE_ADDR']);",
+                "content" : "<?php\nprintf($_SERVER['REMOTE_ADDR']);",
                 "mode"    : "000644",
                 "owner"   : "root",
                 "group"   : "root"
@@ -113,7 +113,6 @@
         "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
                           { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
         "InstanceType"   : { "Ref" : "InstanceType" },
-        "KeyName": "clifflu@clNBTrend_20140808",
         "NetworkInterfaces": [{
           "DeviceIndex": 0,
           "AssociatePublicIpAddress": true,
@@ -192,13 +191,13 @@
     "RdVpc": {
       "Type" : "AWS::EC2::VPC",
       "Properties": {
-        "CidrBlock": "10.33.0.0/16"
+        "CidrBlock": "172.16.0.0/16"
       }
     },
     "RdBrSubnet": {
       "Type" : "AWS::EC2::Subnet",
       "Properties" : {
-        "CidrBlock" : "10.33.0.0/24",
+        "CidrBlock" : "172.16.0.0/24",
         "VpcId" : { "Ref" : "RdVpc" }
       }
     },
@@ -258,7 +257,6 @@
         "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
                           { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
         "InstanceType"   : { "Ref" : "InstanceType" },
-        "KeyName": "clifflu@clNBTrend_20140808",
         "NetworkInterfaces": [{
           "DeviceIndex": 0,
           "AssociatePublicIpAddress": true,
