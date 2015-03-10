@@ -1,7 +1,7 @@
 # -*- coding: utf8 -*-
 
 """
-InstaVPN - Automatic VPN builder for AWS VPC.
+InstaVPN - Instance-based VPN builder for AWS VPC.
 
 Usage:
   instavpn.py [-v | -q] [-c] -i  [-o <CONFIG>]
