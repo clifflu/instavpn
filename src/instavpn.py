@@ -4,18 +4,18 @@
 InstaVPN - Instance-based VPN builder for AWS VPC.
 
 Usage:
-  instavpn.py [-v | -q] [-c] -i  [-o <CONFIG>]
-  instavpn.py [-v | -q] [-c] -j <CONFIG>
+  instavpn.py [-v | -q] [-y] -i  [-o <CONFIG>]
+  instavpn.py [-v | -q] [-y] -c <CONFIG>
   instavpn.py -h | -V
 
 Options:
-  -c --commit   Commit change and build stack without prompt
+  -y --yes      Commit change and build stack without asking.
   -h --help     Show this screen.
   -i --interactive  Interactive UI.
-  -j --json     Load config from json file.
+  -c --config   Load config from json
   -o --output   Save config as json.
-  -q --quiet    Quiet mode.
-  -v --verbose  Verbose output.
+  -q --quiet    Quiet outputs.
+  -v --verbose  Verbose outputs.
   -V --version  Show version.
 """
 
@@ -35,7 +35,7 @@ from lib.actuator import build_world
 def build_config(arg):
     if arg["--interactive"]:
         return ask_config()
-    elif arg["--json"]:
+    elif arg["--config"]:
         return load_json(sys.stdin) if '-' == arg["<CONFIG>"] \
             else load_json(arg["<CONFIG>"])
 
@@ -86,7 +86,7 @@ def instavpn():
         sys.exit(1)
 
     # Final check & go
-    should_build_vpn = 'y' if arg["--commit"] else ask.yn("Build VPN ?", default='y')
+    should_build_vpn = 'y' if arg["--yes"] else ask.yn("Build VPN ?", default='y')
     if 'y' == should_build_vpn.lower():
         build_world(session)
 
