@@ -1,8 +1,4 @@
 *.py[co]
 *.swp
 *.DS_Store
-*.lock
-.vagrant
-chef/tmp
-chef/cookbooks
-chef/site-cookbooks
+sphinx/_build
